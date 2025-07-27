@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>特訓テンプレート生成器</title>
     <meta name="description" content="Excelファイルから新宿校の特訓通知テンプレートを自動生成">
-    <meta name="keywords" content="特訓,テンプレート,Excel,新宿校">
+    <meta name="keywords" content="特訓,テンプレート,Excel,新宿校,LINE">
     
     <!-- SheetJS CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -112,6 +112,29 @@
             display: none;
         }
 
+        /* 進捗表示 */
+        .progress-summary {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .progress-item {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .template-item {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
@@ -132,18 +155,61 @@
         .template-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
+            gap: 20px;
+        }
+
+        .student-info {
+            flex: 1;
+            min-width: 200px;
         }
 
         .student-name {
             font-size: 1.4em;
             font-weight: 700;
             color: #2c3e50;
-            flex: 1;
-            min-width: 200px;
+            margin-bottom: 10px;
+        }
+
+        .student-status {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .copy-status, .line-status {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .copy-status {
+            background: #f8f9fa;
+            color: #6c757d;
+        }
+
+        .copy-status.copied {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .line-status {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .line-status.sent {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
         }
 
         .copy-btn {
@@ -160,6 +226,7 @@
             gap: 10px;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            white-space: nowrap;
         }
 
         .copy-btn:hover {
@@ -175,6 +242,42 @@
         .copy-btn.copied {
             background: linear-gradient(135deg, #27ae60, #2ecc71);
             box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        /* チェックボックスのスタイル */
+        .line-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.7);
+            border: 2px solid #e9ecef;
+        }
+
+        .line-checkbox-label:hover {
+            background: rgba(255, 255, 255, 1);
+            border-color: #25D366;
+        }
+
+        .line-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #25D366;
+        }
+
+        .checkbox-text {
+            white-space: nowrap;
+        }
+
+        .line-checkbox:checked + .checkbox-text {
+            color: #25D366;
         }
 
         .template-content {
@@ -297,18 +400,28 @@
                 align-items: stretch;
             }
 
-            .student-name {
-                text-align: center;
-                margin-bottom: 10px;
+            .student-info {
+                margin-bottom: 15px;
             }
 
-            .copy-btn {
-                justify-content: center;
+            .action-buttons {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
             }
 
             .template-content {
                 font-size: 13px;
                 padding: 20px;
+            }
+
+            .progress-summary {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .progress-item {
+                justify-content: center;
             }
         }
 
@@ -342,7 +455,7 @@
     <div class="container">
         <div class="header">
             <h1>🎯 特訓テンプレート生成器</h1>
-            <p class="subtitle">Excelファイルから新宿校の特訓通知テンプレートを自動生成</p>
+            <p class="subtitle">Excelファイルから新宿校の特訓通知テンプレートを自動生成 + LINE送信管理</p>
         </div>
 
         <div class="instructions">
@@ -352,28 +465,10 @@
                 <li><strong>ヘッダーは3行目</strong>に設定されている必要があります</li>
                 <li><strong>「校舎」列</strong>で新宿校の生徒が自動的に抽出されます</li>
                 <li>各生徒の<strong>コピーボタン</strong>で通知文をクリップボードにコピー</li>
-                <li>生徒名は表示されますが、<strong>コピーされるのは2行目以降</strong>の内容のみです</li>
+                <li>LINEで送信後、<strong>「📱 LINE送信完了」チェックボックス</strong>にチェックを入れてください</li>
+                <li>進捗状況が上部に表示され、送信漏れを防げます</li>
             </ul>
         </div>
 
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
-            <div class="upload-text">Excelファイルをここにドラッグ&ドロップ</div>
-            <div class="upload-subtext">または、クリックしてファイルを選択してください</div>
-            <input type="file" id="fileInput" accept=".xlsx,.xls" aria-label="Excelファイルを選択">
-        </div>
-
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>ファイルを処理中です...</p>
-        </div>
-
-        <div class="error" id="error" role="alert"></div>
-
-        <div class="templates-container" id="templatesContainer"></div>
-    </div>
-
-    <!-- JavaScript ファイルの読み込み -->
-    <script src="script.js"></script>
-</body>
-</html>
