@@ -5,6 +5,9 @@ const loading = document.getElementById('loading');
 const error = document.getElementById('error');
 const templatesContainer = document.getElementById('templatesContainer');
 
+// LINE送信状態を管理するオブジェクト
+let lineSentStatus = {};
+
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', function() {
     // アップロードエリアのイベント
@@ -70,6 +73,9 @@ async function processFile(file) {
     hideError();
     loading.style.display = 'block';
     templatesContainer.style.display = 'none';
+
+    // LINE送信状態をリセット
+    lineSentStatus = {};
 
     try {
         // ファイル読み込み
@@ -157,11 +163,22 @@ function readFile(file) {
 function generateTemplates(students) {
     templatesContainer.innerHTML = '';
     
-    // 成功メッセージ
-    const successMsg = document.createElement('div');
-    successMsg.className = 'success';
-    successMsg.innerHTML = `✅ ${students.length}名の新宿校生徒のテンプレートを生成しました`;
-    templatesContainer.appendChild(successMsg);
+    // 成功メッセージと進捗表示
+    const headerDiv = document.createElement('div');
+    headerDiv.innerHTML = `
+        <div class="success">
+            ✅ ${students.length}名の新宿校生徒のテンプレートを生成しました
+        </div>
+        <div class="progress-summary" id="progressSummary">
+            <div class="progress-item">
+                📋 コピー済み: <span id="copiedCount">0</span>/${students.length}
+            </div>
+            <div class="progress-item">
+                📱 LINE送信済み: <span id="sentCount">0</span>/${students.length}
+            </div>
+        </div>
+    `;
+    templatesContainer.appendChild(headerDiv);
 
     // 各生徒のテンプレートを生成
     students.forEach((student, index) => {
@@ -170,14 +187,28 @@ function generateTemplates(students) {
         
         const template = getTemplate(student);
         const studentName = student['生徒氏名'] || '名前なし';
+        const studentId = `student_${index}`;
         
         templateDiv.innerHTML = `
             <div class="template-header">
-                <div class="student-name">${index + 1}人目: ${escapeHtml(studentName)}</div>
-                <button class="copy-btn" data-index="${index}" data-template="${escapeAttribute(template)}">
-                    📋 コピー
-                </button>
+                <div class="student-info">
+                    <div class="student-name">${index + 1}人目: ${escapeHtml(studentName)}</div>
+                    <div class="student-status">
+                        <span class="copy-status" id="copyStatus_${index}">📝 未コピー</span>
+                        <span class="line-status" id="lineStatus_${index}">⏳ LINE未送信</span>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="copy-btn" data-index="${index}" data-template="${escapeAttribute(template)}">
+                        📋 コピー
+                    </button>
+                    <label class="line-checkbox-label">
+                        <input type="checkbox" class="line-checkbox" data-index="${index}" data-student="${escapeAttribute(studentName)}">
+                        <span class="checkbox-text">📱 LINE送信完了</span>
+                    </label>
+                </div>
             </div>
+            
             <div class="template-content">${escapeHtml(studentName)}
 ${escapeHtml(template)}</div>
         `;
@@ -185,17 +216,65 @@ ${escapeHtml(template)}</div>
         templatesContainer.appendChild(templateDiv);
     });
 
-    // コピーボタンにイベントリスナーを追加
+    // イベントリスナーを追加
+    addEventListeners();
+    
+    // 進捗を更新
+    updateProgress();
+
+    templatesContainer.style.display = 'block';
+}
+
+// イベントリスナーを追加
+function addEventListeners() {
+    // コピーボタンのイベント
     const copyButtons = templatesContainer.querySelectorAll('.copy-btn');
     copyButtons.forEach(button => {
         button.addEventListener('click', function() {
             const template = this.getAttribute('data-template');
-            const index = this.getAttribute('data-index');
-            copyToClipboard(template, parseInt(index), this);
+            const index = parseInt(this.getAttribute('data-index'));
+            copyToClipboard(template, index, this);
         });
     });
 
-    templatesContainer.style.display = 'block';
+    // チェックボックスのイベント
+    const checkboxes = templatesContainer.querySelectorAll('.line-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const index = parseInt(this.getAttribute('data-index'));
+            const studentName = this.getAttribute('data-student');
+            handleLineStatusChange(index, studentName, this.checked);
+        });
+    });
+}
+
+// LINE送信状態変更の処理
+function handleLineStatusChange(index, studentName, isChecked) {
+    const lineStatusElement = document.getElementById(`lineStatus_${index}`);
+    
+    if (isChecked) {
+        lineSentStatus[index] = {
+            studentName: studentName,
+            sentAt: new Date().toLocaleString('ja-JP')
+        };
+        lineStatusElement.textContent = '✅ LINE送信済み';
+        lineStatusElement.className = 'line-status sent';
+    } else {
+        delete lineSentStatus[index];
+        lineStatusElement.textContent = '⏳ LINE未送信';
+        lineStatusElement.className = 'line-status pending';
+    }
+    
+    updateProgress();
+}
+
+// 進捗更新
+function updateProgress() {
+    const copiedCount = document.querySelectorAll('.copy-status.copied').length;
+    const sentCount = Object.keys(lineSentStatus).length;
+    
+    document.getElementById('copiedCount').textContent = copiedCount;
+    document.getElementById('sentCount').textContent = sentCount;
 }
 
 // テンプレート文字列生成
@@ -235,6 +314,14 @@ async function copyToClipboard(text, index, buttonElement) {
         buttonElement.innerHTML = '✅ コピー済み';
         buttonElement.classList.add('copied');
         
+        // コピー状態を更新
+        const copyStatusElement = document.getElementById(`copyStatus_${index}`);
+        copyStatusElement.textContent = '✅ コピー済み';
+        copyStatusElement.className = 'copy-status copied';
+        
+        // 進捗を更新
+        updateProgress();
+        
         // 2秒後に元に戻す
         setTimeout(() => {
             buttonElement.innerHTML = originalText;
@@ -257,6 +344,13 @@ async function copyToClipboard(text, index, buttonElement) {
             const originalText = buttonElement.innerHTML;
             buttonElement.innerHTML = '✅ コピー済み';
             buttonElement.classList.add('copied');
+            
+            // コピー状態を更新
+            const copyStatusElement = document.getElementById(`copyStatus_${index}`);
+            copyStatusElement.textContent = '✅ コピー済み';
+            copyStatusElement.className = 'copy-status copied';
+            
+            updateProgress();
             
             setTimeout(() => {
                 buttonElement.innerHTML = originalText;
